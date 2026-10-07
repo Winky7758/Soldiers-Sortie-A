@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>士兵突击 · 模拟器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  background:#11150c;
+  color:#d8dcc8;
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.8;
+  padding:10px 10px 60px;
+  max-width:620px;margin:0 auto;
+}
+.card{
+  background:#1a2114;
+  border:1px solid #384a24;
+  border-radius:10px;
+  padding:12px 12px;
+  margin-bottom:12px;
+}
+.title{
+  color:#a8c46a;font-weight:bold;
+  border-left:3px solid #7a9a3a;
+  padding-left:8px;margin-bottom:10px;
+  font-size:15px;letter-spacing:1px;
+}
+pre.code{
+  background:#0d1108;
+  border:1px solid #2c3a1c;
+  border-radius:8px;
+  padding:10px 8px;
+  font-family:"SF Mono",Consolas,"Courier New",monospace;
+  font-size:11.5px;line-height:1.65;
+  overflow-x:auto;
+  color:#b9d189;
+  white-space:pre;
+  -webkit-overflow-scrolling:touch;
+}
+.story{
+  font-style:italic;
+  color:#e2e6d2;
+  letter-spacing:.3px;
+}
+.story p{margin-bottom:10px;font-style:italic}
+.btn{
+  display:block;width:100%;
+  background:#25301a;
+  color:#c8dc9a;
+  border:1px solid #4d6630;
+  border-radius:8px;
+  padding:11px 12px;
+  font-size:14.5px;
+  font-family:inherit;
+  text-align:left;
+  margin-top:9px;
+  cursor:pointer;
+  transition:.15s;
+  line-height:1.55;
+}
+.btn:active{background:#38471f;transform:scale(.985)}
+.btn:disabled{opacity:.35}
+.btn.custom{background:#1d2515;border-style:dashed;color:#9fb073}
+.input{
+  width:100%;
+  background:#0d1108;
+  border:1px solid #3a4a24;
+  border-radius:8px;
+  color:#c8dc9a;
+  padding:11px;
+  font-size:15px;
+  font-family:inherit;
+  margin-bottom:10px;
+}
+.input:focus{outline:none;border-color:#7a9a3a}
+.alloc-row{
+  display:flex;align-items:center;
+  gap:8px;margin-bottom:8px;
+}
+.alloc-name{width:52px;color:#a8c46a;font-size:14px}
+.alloc-bar{flex:1;color:#7fa03f;font-family:monospace;font-size:12px;letter-spacing:-1px}
+.alloc-val{width:34px;text-align:right;color:#e0e8c8;font-size:13px}
+.mini{
+  width:32px;height:32px;
+  background:#25301a;border:1px solid #4d6630;
+  color:#c8dc9a;border-radius:6px;
+  font-size:17px;line-height:1;
+  cursor:pointer;
+}
+.mini:active{background:#38471f}
+.tag{color:#7fa03f;font-size:13px}
+.hint{color:#7f8a68;font-size:12.5px;margin-top:8px;line-height:1.6}
+hr{border:none;border-top:1px dashed #33421f;margin:10px 0}
+</style>
+</head>
+<body>
+<div id="screen"></div>
+
+<script>
+/* ============================================================
+   全局状态
+============================================================ */
+let G = null;
+let creation = {
+  step: 0,
+  data: {
+    name:'', age:19, origin:'', past:'', trait:'',
+    attrs:{体能:20,射击:20,战术:20,意志:20,人缘:20,悟性:20},
+    left:30
+  }
+};
+
+/* ============================================================
+   工具函数
+============================================================ */
+function bar(v, max){
+  max = max || 100;
+  const n = Math.max(0, Math.min(10, Math.round(v/max*10)));
+  return '■'.repeat(n) + '□'.repeat(10-n);
+}
+function num(v){ return String(Math.round(v)).padStart(3,' '); }
+
+/* ============================================================
+   角色创建
+============================================================ */
+function renderCreation(){
+  const s = document.getElementById('screen');
+  const d = creation.data;
+  let html = '';
+
+  switch(creation.step){
+    case 0:
+      html = `
+      <div class="card">
+        <div class="title">🎖️ 士兵突击 · 模拟器</div>
+        <p>一九九九年冬，北方某集团军新兵连。</p>
+        <p>风很硬，操场是土的，脸是生的。</p>
+        <p style="margin-top:10px;color:#a8c46a">你什么都还不是。</p>
+        <p style="color:#a8c46a">先报上名来。</p>
+      </div>
+      <div class="card">
+        <div class="title">【 1 / 6 】姓名</div>
+        <input id="nameInput" class="input" placeholder="请输入你的名字（2-4字）" maxlength="4">
+        <button class="btn" onclick="setName()">▶ 确认</button>
+      </div>`;
+      break;
+
+    case 1:
+      html = `
+      <div class="card">
+        <div class="title">【 2 / 6 】年龄</div>
+        <p class="hint">你入伍时的年龄。太年轻容易被人看轻，太年长又难融进新兵堆里。</p>
+        <button class="btn" onclick="setAge(18)">▶ 十八岁 · 刚够入伍线，什么都还来得及</button>
+        <button class="btn" onclick="setAge(19)">▶ 十九岁 · 不高不低，最常见的那一档</button>
+        <button class="btn" onclick="setAge(20)">▶ 二十岁 · 比同批人大一截，得靠自己站稳</button>
+        <button class="btn" onclick="setAge(22)">▶ 二十二岁 · 在家干过几年活，手上有茧</button>
+      </div>`;
+      break;
+
+    case 2:
+      html = `
+      <div class="card">
+        <div class="title">【 3 / 6 】来处</div>
+        <p class="hint">你从哪儿来，会在你身上留下痕迹。</p>
+        <button class="btn" onclick="setOrigin('农村')">▶ 农村 · 地里的活干惯了，力气有，见识少 💪</button>
+        <button class="btn" onclick="setOrigin('县城')">▶ 县城 · 念过几年书，脑子活，身子骨一般 💡</button>
+        <button class="btn" onclick="setOrigin('城市')">▶ 城市 · 见识多，嘴皮子利索，体能是短板 🤝</button>
+        <button class="btn" onclick="setOrigin('军人家庭')">▶ 军人家庭 · 从小听军号长大，规矩刻在骨子里 🎖️</button>
+      </div>`;
+      break;
+
+    case 3:
+      html = `
+      <div class="card">
+        <div class="title">【 4 / 6 】入伍前</div>
+        <p class="hint">你带着什么进了军营。</p>
+        <button class="btn" onclick="setPast('读书')">▶ 高中毕业，成绩不好不坏，考学没考上 📖</button>
+        <button class="btn" onclick="setPast('打工')">▶ 在工地干过，在饭馆端过盘子，什么都试过 🔨</button>
+        <button class="btn" onclick="setPast('待业')">▶ 在家闲着，被家里人推着来的 🛏️</button>
+        <button class="btn" onclick="setPast('体校')">▶ 体校练过几年，跑得快，跳得高 🏃</button>
+      </div>`;
+      break;
+
+    case 4:
+      html = `
+      <div class="card">
+        <div class="title">【 5 / 6 】性子</div>
+        <p class="hint">没人知道这性子会把你带到哪儿去。</p>
+        <button class="btn" onclick="setTrait('闷')">▶ 话少 · 别人说十句你说一句，心里有本账 🤐</button>
+        <button class="btn" onclick="setTrait('轴')">▶ 轴 · 认准的事，撞了墙也不回头 🔥</button>
+        <button class="btn" onclick="setTrait('灵')">▶ 机灵 · 眼观六路，知道什么时候该说什么话 💡</button>
+        <button class="btn" onclick="setTrait('憨')">▶ 憨厚 · 别人算计你不计较，吃亏也认 🤝</button>
+      </div>`;
+      break;
+
+    case 5:
+      html = `
+      <div class="card">
+        <div class="title">【 6 / 6 】分配点数 · 剩余 <span style="color:#ffd166">${d.left}</span></div>
+        <p class="hint">你有一些底子，但怎么用它，是你自己的事。</p>
+        ${Object.keys(d.attrs).map(k=>`
+          <div class="alloc-row">
+            <span class="alloc-name">${k}</span>
+            <span class="alloc-bar">${bar(d.attrs[k],60)}</span>
+            <span class="alloc-val">${d.attrs[k]}</span>
+            <button class="mini" onclick="adj('${k}',-1)">−</button>
+            <button class="mini" onclick="adj('${k}',1)">+</button>
+          </div>`).join('')}
+        <hr>
+        <div class="hint">
+          体能 💪 跑步、单杠、负重<br>
+          射击 🎯 据枪、击发、心理<br>
+          战术 🧠 队形、判断、协同<br>
+          意志 🔥 扛住、不崩、坚持<br>
+          人缘 🤝 被人记住、被人接纳<br>
+          悟性 💡 学得快、想得深
+        </div>
+        <button class="btn" ${d.left>0?'disabled':''} onclick="startGame()">
+          ▶ ${d.left>0?'还剩 '+d.left+' 点未分配':'完成，进入军营'}
+        </button>
+      </div>`;
+      break;
+  }
+  s.innerHTML = html;
+  if(creation.step === 0){
+    const inp = document.getElementById('nameInput');
+    if(inp) inp.focus();
+  }
+}
+
+function setName(){
+  const v = document.getElementById('nameInput').value.trim();
+  if(!v){ alert('总得有个名字。'); return; }
+  creation.data.name = v;
+  creation.step = 1; renderCreation();
+}
+function setAge(a){
+  creation.data.age = a;
+  if(a>=21){ creation.data.attrs.意志 += 8; creation.data.attrs.体能 += 5; }
+  if(a<=18){ creation.data.attrs.悟性 += 6; creation.data.attrs.体能 += 3; }
+  creation.step = 2; renderCreation();
+}
+function setOrigin(o){
+  const a = creation.data.attrs;
+  if(o==='农村'){ a.体能+=10; a.意志+=6; a.悟性-=4; }
+  if(o==='县城'){ a.悟性+=8; a.战术+=5; a.体能-=3; }
+  if(o==='城市'){ a.人缘+=10; a.悟性+=5; a.体能-=6; }
+  if(o==='军人家庭'){ a.战术+=10; a.意志+=5; a.人缘-=4; }
+  creation.data.origin = o;
+  creation.step = 3; renderCreation();
+}
+function setPast(p){
+  const a = creation.data.attrs;
+  if(p==='读书'){ a.悟性+=8; a.战术+=4; }
+  if(p==='打工'){ a.人缘+=6; a.意志+=6; }
+  if(p==='待业'){ a.意志-=4; a.人缘+=4; a.悟性+=3; }
+  if(p==='体校'){ a.体能+=12; a.射击-=3; }
+  creation.data.past = p;
+  creation.step = 4; renderCreation();
+}
+function setTrait(t){
+  const a = creation.data.attrs;
+  if(t==='闷'){ a.意志+=8; a.人缘-=4; }
+  if(t==='轴'){ a.意志+=10; a.人缘-=3; a.悟性-=2; }
+  if(t==='灵'){ a.人缘+=8; a.悟性+=6; a.意志-=3; }
+  if(t==='憨'){ a.人缘+=10; a.意志+=4; a.悟性-=3; }
+  creation.data.trait = t;
+  creation.step = 5; renderCreation();
+}
+function adj(k,d){
+  const a = creation.data.attrs;
+  if(d>0 && creation.data.left<=0) return;
+  if(d<0 && a[k]<=20) return;
+  a[k] += d;
+  creation.data.left -= d;
+  renderCreation();
+}
+
+/* ============================================================
+   开局
+============================================================ */
+function startGame(){
+  const d = creation.data;
+  G = {
+    name: d.name,
+    age: d.age,
+    origin: d.origin,
+    past: d.past,
+    trait: d.trait,
+    attrs: Object.assign({}, d.attrs),
+    st: {体力:100, 精神:100, 士气:55},
+    rel: {许三多:0,成才:0,史今:0,伍六一:0,高城:0,袁朗:0,吴哲:0,齐桓:0,老马:0},
+    met: new Set(['史今']),
+    flags: {},
+    scene: 'newbie_arrive',
+    turn: 0
+  };
+  render();
+}
+
+/* ============================================================
+   效果应用
+============================================================ */
+function applyEffects(e){
+  if(!e) return;
+  if(e.attrs) for(const k in e.attrs){
+    G.attrs[k] = Math.max(0, Math.min(100, G.attrs[k] + e.attrs[k]));
+  }
+  if(e.rel) for(const k in e.rel){
+    G.rel[k] = Math.max(-100, Math.min(100, G.rel[k] + e.rel[k]));
+    G.met.add(k);
+  }
+  if(e.st) for(const k in e.st){
+    G.st[k] = Math.max(0, Math.min(100, G.st[k] + e.st[k]));
+  }
+  if(e.flags) for(const k in e.flags) G.flags[k] = e.flags[k];
+  if(e.met) e.met.forEach(m=>G.met.add(m));
+}
+
+/* ============================================================
+   场景数据
+============================================================ */
+const scenes = {
+
+/* ---------- 新兵连 ---------- */
+newbie_arrive: {
+  date:'一九九九年十二月五日', time:'清晨', weather:'阴，北风', place:'新兵连 · 操场',
+  text: [
+    `卡车是凌晨四点进的营区。你被颠醒的时候，车厢里还是黑的，只有帆布缝里漏进一道灰白的光，落在对面那人的肩上。他睡得很沉，嘴角挂着口水——后来你知道他叫成才。`,
+    `车一停，外面有人敲车厢板，喊"下车下车"。你抓起背包，带子缠在腿上，踉跄了一下，撞到旁边的人。那人没吭声，只是扶了你一把。他脸黑，眼睛亮。`,
+    `操场上已经站满了人。新兵连的班长排成一列，一个个站得笔直，像钉在地上的桩子。风从北边来，硬邦邦地刮在脸上。`,
+    `"我叫史今，是你们的班长。"他说话很慢，声音不高，但每个人都听得见。"从今天起，你们就是兵了。"`,
+    `你握着背包带的手紧了紧。你想起三天前父亲送你到村口，一句话没说，只在你背上拍了两下。那两下很重，现在还有点疼。`,
+    `队伍开始分班。有人被喊到名字出列，有人没被喊到，就自己往前站一步。你听见"成才"两个字，那个睡着的同乡应了一声，步子很稳。然后是"许三多"。没人应。史今又喊了一遍。队伍末尾才有人低低地"到"了一声，声音发颤。`,
+    `你看见那个叫许三多的新兵，个子不矮，但整个人像是被什么东西压着，肩膀是塌的。史今走过去，拍了拍他的肩，说："站直了。"`
+  ],
+  choices: [
+    { t:'抢在第一个出列，把背包甩上肩，站到最前面',
+      e:{attrs:{体能:3,意志:2}, rel:{史今:3,高城:2}, met:['高城']},
+      n:'newbie_queue' },
+    { t:'按部就班，先把背包带子理好，再站进队',
+      e:{attrs:{战术:3}, rel:{史今:2}},
+      n:'newbie_queue' },
+    { t:'走过去，帮许三多把塌下去的背包扶正',
+      e:{attrs:{人缘:4}, rel:{许三多:12,史今:5}, met:['许三多']},
+      n:'newbie_queue' },
+    { t:'不出头，观察每一个班长的表情和站姿',
+      e:{attrs:{悟性:4,战术:2}, rel:{史今:1}},
+      n:'newbie_queue' }
+  ],
+  customNext:'newbie_queue'
+},
+
+newbie_queue: {
+  date:'一九九九年十二月八日', time:'上午', weather:'晴，干冷', place:'新兵连 · 训练场',
+  text: [
+    `队列训练第三天。你的左脚右脚还是分不太清，但至少不会顺拐了。`,
+    `队伍里有人顺拐。是许三多。他一顺拐，整个排面就跟着歪。班长喊"立定"，他往前多迈了半步，撞到前面那人的后脑勺。`,
+    `后面有人笑。笑声不大，但传得很远。史今没笑。他走过去，把许三多的手摆正，说："看着我的脚。一，二，一。"`,
+    `许三多的脸涨得通红，脖子上的筋绷着。他很努力，但身体不听他的。`,
+    `午休的时候，你看见他一个人站在操场边，对着地上的影子练。影子只有一小团，他对着那团影子，一遍遍地抬腿、落脚。`,
+    `成才从你身边走过，瞥了一眼，说："练也没用。"然后他走了。`,
+    `你没说话。风把地上的枯草吹得打转。`
+  ],
+  choices: [
+    { t:'走过去，陪许三多练一会儿队列',
+      e:{attrs:{人缘:3,意志:3}, rel:{许三多:15,史今:4}, st:{体力:-8}},
+      n:'newbie_shoot' },
+    { t:'回宿舍，自己加练自己的队列',
+      e:{attrs:{体能:4,意志:3}, st:{体力:-10}},
+      n:'newbie_shoot' },
+    { t:'找史今班长，问他许三多这样的怎么办',
+      e:{attrs:{悟性:4}, rel:{史今:8}},
+      n:'newbie_shoot' },
+    { t:'什么也不做，午休时间不多了',
+      e:{st:{体力:8,精神:5}},
+      n:'newbie_shoot' }
+  ],
+  customNext:'newbie_shoot'
+},
+
+newbie_shoot: {
+  date:'一九九九年十二月二十日', time:'上午', weather:'雪后初晴', place:'靶场',
+  text: [
+    `第一次打靶。`,
+    `你趴在地上的时候，雪化了，冰水从袖口往里渗。枪托抵在肩窝，硬得硌人。你按照史今教的，三点一线，屏住呼吸。`,
+    `枪响了。你耳朵里嗡嗡的，肩膀被后坐力顶得发麻。报靶员挥旗——不算差，也不算好。`,
+    `你旁边那枪，五发全脱靶。是许三多。他趴在那儿，脸贴着地，好半天没起来。史今走过去，蹲在他身边，什么也没说，只是把他的手从枪上拿开，又放回去。`,
+    `成才五发全中，环数全连第一。他把枪递还给班长的时候，手很稳，眼神扫了一圈，像是在确认别人都看见了。`,
+    `伍六一在你左边。他没看任何人，只是把枪擦了擦，站起来，走了。他的靶纸上弹孔挤在一起，像一朵花。`,
+    `中午吃饭，你听见成才对旁边人说："打靶这东西，有天赋和没天赋，差得远。"他说这话的时候，许三多就坐在两桌之外，低着头扒饭。`
+  ],
+  choices: [
+    { t:'去靶场找许三多，教他怎么据枪',
+      e:{attrs:{人缘:4,悟性:2}, rel:{许三多:12,史今:5}, st:{体力:-5}},
+      n:'newbie_5k' },
+    { t:'去找成才，请教他的瞄准方法',
+      e:{attrs:{射击:6}, rel:{成才:10}, met:['成才']},
+      n:'newbie_5k' },
+    { t:'找伍六一，问他怎么把弹孔打进一个眼儿里',
+      e:{attrs:{射击:4,意志:3}, rel:{伍六一:8}, met:['伍六一']},
+      n:'newbie_5k' },
+    { t:'自己回去练，把成绩再往上提一提',
+      e:{attrs:{射击:5,意志:2}, st:{体力:-8}},
+      n:'newbie_5k' }
+  ],
+  customNext:'newbie_5k'
+},
+
+newbie_5k: {
+  date:'一九九九年十二月二十八日', time:'下午', weather:'阴', place:'新兵连 · 跑道',
+  text: [
+    `五公里。`,
+    `前两公里你还跟得上。第三公里开始，肺里像塞了团棉花，每吸一口气都是冷的。你看见前面的人影在晃，晃得你眼花。`,
+    `许三多在你前面。他步子很乱，但没有停。他跑得很难看，像是每一步都在跟自己较劲。你从他身边跑过去的时候，听见他喘得很响。`,
+    `终点线在四百米外。成才已经跑完了，站在线边抱着胳膊，脸上没什么表情。伍六一也在，他跑完很久了，正在慢走调整，背挺得笔直。`,
+    `最后一百米，许三多摔了一跤。他趴在地上，两只手撑着，想站起来，没站起来。周围有人笑。`,
+    `史今不在跑道边——他被叫去连部开会了。`,
+    `你也在喘，腿也在抖。时间还在走。`
+  ],
+  choices: [
+    { t:'回头，把许三多拽起来',
+      e:{attrs:{意志:5,人缘:4}, rel:{许三多:15,史今:6,伍六一:3}, st:{体力:-15}},
+      n:'fenbing' },
+    { t:'咬牙冲过终点，先保住自己的成绩',
+      e:{attrs:{体能:6,意志:3}, rel:{成才:4,许三多:-4}, st:{体力:-10}},
+      n:'fenbing' },
+    { t:'放慢脚步，陪他跑完最后一百米',
+      e:{attrs:{意志:4,人缘:5}, rel:{许三多:18,史今:8}, st:{体力:-12}},
+      n:'fenbing' },
+    { t:'站在终点线那边喊他起来',
+      e:{attrs:{人缘:2}, rel:{许三多:5,伍六一:2}, st:{体力:-6}},
+      n:'fenbing' }
+  ],
+  customNext:'fenbing'
+},
+
+fenbing: {
+  date:'二〇〇〇年三月十四日', time:'夜', weather:'晴，月光很亮', place:'新兵连 · 宿舍',
+  text: [
+    `三个月。明天分兵。`,
+    `宿舍里没人说话。有人在写信，有人在擦枪，有人躺在床上睁着眼睛看天花板。你坐在床沿。窗外的月亮很亮，照在操场上，白花花的一片。`,
+    `这三个月你练出来了。你知道自己现在是什么水平，也知道自己想去哪儿。`,
+    `钢七连——七〇二团的尖刀，装甲侦察连。每次他们从训练场经过，队伍都是整齐的，脚步声像一个人在走。高城连长走在最前面，目不斜视。`,
+    `草原五班——红三连在草原上的驻训点。你只听说过一次，有人说那儿"连狗都懒得去"。`,
+    `史今推门进来，手里拿着名单，没念。他走到你床边，站了一会儿。`,
+    `"明天分兵。"他说，"你自己有没有想去的地方？"`,
+    `灯是熄的，但你看见他眼睛里有光。`
+  ],
+  choices: [
+    { t:'"我想去钢七连。最狠的地方。"',
+      e:{attrs:{意志:5}, rel:{史今:8,高城:5}, met:['高城']},
+      nFn:()=> G.attrs.体能 >= 38 ? 'qilian_arrive' : 'wuban_arrive' },
+    { t:'"我听组织分配。"',
+      e:{attrs:{意志:2}, rel:{史今:4}},
+      nFn:()=> G.attrs.体能 >= 42 ? 'qilian_arrive' : 'wuban_arrive' },
+    { t:'"班长，你觉得我去哪儿合适？"',
+      e:{attrs:{悟性:3}, rel:{史今:10}},
+      nFn:()=> (G.attrs.体能 >= 40 || G.rel.史今 >= 25) ? 'qilian_arrive' : 'wuban_arrive' },
+    { t:'"我想去最苦的地方。"',
+      e:{attrs:{意志:8,人缘:3}, rel:{史今:6}},
+      n:'wuban_arrive' }
+  ],
+  customNext:'qilian_arrive'
+},
+
+/* ---------- 钢七连线 ---------- */
+qilian_arrive: {
+  date:'二〇〇〇年三月十六日', time:'清晨', weather:'晴', place:'钢七连 · 营区',
+  text: [
+    `钢七连的早晨从五点开始。`,
+    `你被哨声叫醒的时候，天还是黑的。十分钟后你已经站在操场上，呼出的白气在面前散开。五公里，风雨无阻，这是钢七连的规矩。`,
+    `跑完回来，你才看清这座营房。门口有一面墙，墙上密密麻麻刻着名字，从上到下，一行一行。老兵说，那是钢七连的兵。每一个进连的人，都要在这里找到自己的位置。`,
+    `许三多也来了。史今力争把他要过来的。高城连长在连部门口看了他一眼，那一眼很短，但许三多整个人缩了一下。`,
+    `"列兵许三多！"值班员喊，"你是钢七连第五千个兵！"`,
+    `许三多愣在那儿，不知道该说什么。周围没人笑，也没人鼓掌。所有人都看着他——看他能不能接住这句话。`,
+    `你站在队列里，能感觉到那面墙的重量。它不是石头砌的，它是人砌的。`
+  ],
+  choices: [
+    { t:'走过去，拍拍许三多的肩，说"慢慢来"',
+      e:{rel:{许三多:12,史今:5}, attrs:{人缘:3}},
+      n:'qilian_days' },
+    { t:'什么也不说，先把自己的内务整利索',
+      e:{attrs:{战术:3,意志:3}, rel:{高城:3}},
+      n:'qilian_days' },
+    { t:'找伍六一问连队的情况',
+      e:{attrs:{战术:4}, rel:{伍六一:8}, met:['伍六一']},
+      n:'qilian_days' },
+    { t:'把连史墙上的名字，从头看到尾',
+      e:{attrs:{意志:5,悟性:3}, rel:{高城:5,史今:4}},
+      n:'qilian_days' }
+  ],
+  customNext:'qilian_days'
+},
+
+qilian_days: {
+  date:'二〇〇〇年六月', time:'傍晚', weather:'闷热', place:'钢七连 · 操场',
+  text: [
+    `钢七连的日子是熬出来的。`,
+    `每天的加练你从没落下。操场上，单杠被晒得烫手，掌心的茧磨破又长出来。伍六一总是第一个到，最后一个走。他不跟你说话，但每次你多做一组，他就多做两组。`,
+    `许三多还在拖后腿。全班成绩被他往下拽，有人开始当面骂他。史今护着他，但史今自己也很累——你看见过他一个人坐在连部门口的台阶上抽烟，烟烧到手指才反应过来。`,
+    `成才越来越顺。他在训练场上是标杆，在班里也吃得开。他跟谁都笑，跟谁都好，但你总觉得那笑是有分寸的——像是量好了尺寸才递出来的。`,
+    `有天晚上熄灯后，成才凑到你床边，压低声音说："哎，你说咱们这么练，图什么？"`,
+    `你没回答。他自己接下去："图个好前程呗。"`,
+    `窗外有蝉在叫。上铺传来许三多翻身的声音，木床吱呀响了一声。`
+  ],
+  choices: [
+    { t:'加练——去操场跑圈或拉单杠',
+      e:{attrs:{体能:6,意志:4}, st:{体力:-12}},
+      n:'qilian_333' },
+    { t:'找史今聊天——他通常这个时间在班里',
+      e:{attrs:{悟性:3}, rel:{史今:10}, st:{精神:6}},
+      n:'qilian_333' },
+    { t:'帮许三多——他还在为某个科目发愁',
+      e:{attrs:{人缘:4,意志:2}, rel:{许三多:12,史今:6}, st:{体力:-6}},
+      n:'qilian_333' },
+    { t:'独处——写家信，或只是坐着',
+      e:{attrs:{意志:3}, st:{精神:10,士气:5}},
+      n:'qilian_333' }
+  ],
+  customNext:'qilian_333'
+},
+
+qilian_333: {
+  date:'二〇〇〇年八月', time:'下午', weather:'烈日', place:'钢七连 · 单杠场',
+  text: [
+    `那天全连都在场。`,
+    `本来是正常的体能考核，许三多被点名做腹部绕杠。他爬上单杠，手一勾，身子吊在那儿，晃。`,
+    `一圈。两圈。三圈。到第八圈的时候，他的动作已经变形了。底下有人开始数，声音越来越大。`,
+    `"二十！""三十！"`,
+    `许三多的脸涨成了紫红色，手上全是汗。他的身体已经不听使唤了，但他在转，一圈，又一圈。`,
+    `史今站在单杠下面，仰着头，一句话不说。高城不知道什么时候来了，站在人群外面，抱着胳膊。`,
+    `数字还在往上走。有人笑，笑着笑着不笑了。因为所有人都看出来了——他不是在完成考核，他是在跟自己死磕。`,
+    `"三百三十三！"`,
+    `许三多从单杠上掉下来，摔在沙坑里，趴着起不来。全场安静了两秒。`,
+    `然后不知道谁先鼓的掌。掌声稀稀拉拉响起来，最后连成一片。`,
+    `高城什么也没说，转身走了。但你知道，从今天开始，许三多这个人，在他心里有位置了。`
+  ],
+  choices: [
+    { t:'第一个冲上去，把许三多从沙坑里扶起来',
+      e:{attrs:{人缘:5}, rel:{许三多:18,史今:8,伍六一:5}},
+      n:'gaibian' },
+    { t:'留在操场，等人都走了再去扶他',
+      e:{attrs:{意志:4}, rel:{许三多:14}},
+      n:'gaibian' },
+    { t:'去看高城的表情',
+      e:{attrs:{悟性:5,战术:3}, rel:{高城:8}},
+      n:'gaibian' },
+    { t:'回宿舍，自己上杠试试能绕多少',
+      e:{attrs:{体能:6,意志:5}, st:{体力:-15}},
+      n:'gaibian' }
+  ],
+  customNext:'gaibian'
+},
+
+/* ---------- 草原五班线 ---------- */
+wuban_arrive: {
+  date:'二〇〇〇年三月十六日', time:'中午', weather:'晴，大风', place:'草原五班 · 驻训点',
+  text: [
+    `越野车开了四个钟头，把你扔在一片空地上。`,
+    `司机指了指前面那排低矮的平房，说"到了"，然后掉头就走。车屁股后面的尘土扬起来，半天没落。`,
+    `这里什么都没有。天很大，地很平，风从很远的地方吹过来，中间没有任何东西挡着。你能听见风穿过电线杆的声音，呜呜的，像有人在哭。`,
+    `门口台阶上躺着一个人，帽檐盖着脸。你走近了，他才把帽子往上推了推，露出一双没什么神采的眼睛。`,
+    `"新来的？"他问。`,
+    `你说嗯。`,
+    `"我叫老马。"他坐起来，打了个哈欠，"这儿是五班。规矩就一条——别折腾。"`,
+    `屋里还有两个人。一个趴在桌上写东西，写了半天一个字没动；另一个在洗牌，牌都磨毛了边。`,
+    `你把行李放下。床板上有一层灰。`,
+    `窗外，输油管道的标志杆一根一根排到天边，看不到头。`
+  ],
+  choices: [
+    { t:'把床板擦干净，把内务整成新兵连的样子',
+      e:{attrs:{意志:6}, rel:{老马:-3}, met:['老马'], st:{体力:-8}},
+      n:'wuban_road' },
+    { t:'跟老马搭话，问他这地方是怎么回事',
+      e:{attrs:{人缘:3,悟性:3}, rel:{老马:5}},
+      n:'wuban_road' },
+    { t:'去跟写东西的那个人聊聊',
+      e:{attrs:{悟性:4}, rel:{老马:2}, st:{精神:5}},
+      n:'wuban_road' },
+    { t:'一个人出去走走，看看这片草原',
+      e:{attrs:{意志:4,悟性:2}, st:{精神:8}},
+      n:'wuban_road' }
+  ],
+  customNext:'wuban_road'
+},
+
+wuban_road: {
+  date:'二〇〇〇年五月', time:'下午', weather:'晴，风沙', place:'草原五班 · 空地',
+  text: [
+    `你来五班两个月了。`,
+    `两个月里你干了很多事，也什么都没干。你擦过枪，虽然这里没几支枪；你跑过步，虽然没人给你计时；你把五班的院子扫了一遍又一遍，扫到最后，老马说："你是不是有病？"`,
+    `然后你想修一条路。`,
+    `从营房到那条输油管道的巡检道，中间有三百多米。下雨天全是泥，人走一趟裤腿上能挂二斤土。`,
+    `你捡了石头，一块一块地铺。第一天，老马在门口看着你，看了一会儿，回屋了。第二天，他出来说："别折腾了，没人看。"`,
+    `你说："我自己看。"`,
+    `老马愣了一下，什么也没说。`,
+    `第三天，李梦从窗户里探出头，看了你半天。第四天，薛林把牌收了。第五天，老马蹲在你旁边，捡起一块石头，掂了掂。`,
+    `"这石头不行，"他说，"得用那边那种青的。"`,
+    `风从草原上刮过来，把尘土吹得老远。你的手磨破了，掌心是血泡，但你没停。`
+  ],
+  choices: [
+    { t:'继续修，一个人也修下去',
+      e:{attrs:{意志:12,体能:5}, rel:{老马:10}, st:{体力:-20,士气:10}},
+      n:'gaibian' },
+    { t:'拉上老马一起干',
+      e:{attrs:{人缘:8,意志:6}, rel:{老马:18}, st:{体力:-15,士气:12}},
+      n:'gaibian' },
+    { t:'不修了。老马说得对，没人看',
+      e:{attrs:{意志:-6}, rel:{老马:-5}, st:{士气:-15}},
+      n:'gaibian' },
+    { t:'修，但只修一半——剩下的留给别人',
+      e:{attrs:{意志:5,悟性:4}, rel:{老马:6}, st:{体力:-10}},
+      n:'gaibian' }
+  ],
+  customNext:'gaibian'
+},
+
+/* ---------- 改编 ---------- */
+gaibian: {
+  date:'二〇〇〇年深秋', time:'傍晚', weather:'阴，白杨落叶', place:'钢七连 · 营房前',
+  text: [
+    `命令下来的时候，谁都不信。`,
+    `钢七连改编为电子对抗连。人员打散，分到各连队。番号保留。`,
+    `那天全连集合，站在营房前面。门口的杨树掉了一地叶子，踩上去沙沙响。`,
+    `高城站在最前面，站了很久。他张了几次嘴，都没说出话。`,
+    `"七连还没有散。"他终于开口，声音有点哑，"散了番号也在。那叫改编，不叫解散。"`,
+    `没有人说话。风把落叶卷起来，打了个旋。`,
+    `然后有人开始唱连歌。先是几个人，然后是整连。`,
+    `"一声霹雳一把剑，一群猛虎钢七连——"`,
+    `你的喉咙发紧。你看见史今站在队伍里，低着头；看见伍六一直挺挺地站着，眼睛红了；看见许三多哭得满脸是泪，但还在唱。`,
+    `唱到最后一句"踏敌尸骨唱凯旋"，声音大得像是要把营房震塌。`,
+    `唱完了，队伍解散。有人蹲在地上不起来。`,
+    `高城还站在原地，看着那面墙——那面刻着五千个名字的墙。`
+  ],
+  choices: [
+    { t:'留下来，跟着高城，做重建钢七连的火种',
+      e:{attrs:{意志:8}, rel:{高城:15}, flags:{留七连:true}, st:{士气:8}},
+      n:'selection' },
+    { t:'主动申请去最偏远的连队，把七连的东西带过去',
+      e:{attrs:{意志:6,人缘:5}, rel:{高城:10,史今:8}, flags:{外派:true}},
+      n:'selection' },
+    { t:'去找史今，跟他道别',
+      e:{rel:{史今:15,许三多:5}, attrs:{人缘:3}, st:{精神:-5}},
+      n:'selection' },
+    { t:'去找伍六一，什么也不说，就陪他站一会儿',
+      e:{rel:{伍六一:15}, attrs:{意志:4}},
+      n:'selection' }
+  ],
+  customNext:'selection'
+},
+
+/* ---------- 老A选拔 ---------- */
+selection: {
+  date:'二〇〇一年冬', time:'凌晨', weather:'零下十五度，有风', place:'野外 · 集结地',
+  text: [
+    `A大队来人了。`,
+    `选拔的通知贴在各连队门口，就一张纸，上面几行字。全团报名的人挤破了门。`,
+    `你和许三多、成才、伍六一都报了名。`,
+    `集结那天凌晨，你们被卡车拉到一个完全陌生的地方。下车的时候，风像刀子一样刮在脸上。`,
+    `一个穿作训服的人站在车灯前面，手里拿着名单，脸上带着笑。`,
+    `"我叫袁朗。"他说，"从今天开始，你们没有名字，只有编号。你们是南瓜。"`,
+    `有人笑。他也不恼，只是继续说："规则很简单——一直走。走到我让你们停为止。"`,
+    `"哦对了，"他补了一句，"不走的，可以现在上车。"`,
+    `没人上车。`,
+    `袁朗点点头，笑了一下。那个笑容让你后背发凉。`,
+    `队伍开始走。天很黑，什么也看不见。你只能听见前面人的脚步声，和自己粗重的呼吸。`,
+    `这一走，就是三天。`
+  ],
+  choices: [
+    { t:'紧跟在伍六一后面，跟他保持同一个节奏',
+      e:{attrs:{体能:6,意志:5}, rel:{伍六一:12}, st:{体力:-25}},
+      n:'selection_end' },
+    { t:'跟许三多走在一起，互相照应',
+      e:{attrs:{意志:5,人缘:4}, rel:{许三多:15}, st:{体力:-22}},
+      n:'selection_end' },
+    { t:'自己找节奏，不跟着任何人',
+      e:{attrs:{体能:8,意志:4}, st:{体力:-20}},
+      n:'selection_end' },
+    { t:'跟在成才身边，学他怎么分配体力',
+      e:{attrs:{战术:6,体能:4}, rel:{成才:10}, st:{体力:-18}},
+      n:'selection_end' }
+  ],
+  customNext:'selection_end'
+},
+
+selection_end: {
+  date:'二〇〇一年冬', time:'深夜', weather:'大雪', place:'山地 · 最后一段',
+  text: [
+    `最后一段。`,
+    `三个名额。队伍已经拉成了一条线。`,
+    `前面还有几公里，终点就在山那边。你的腿像灌了铅，每抬一次都要用尽全身的力气。`,
+    `然后你听见后面有人摔倒的声音。`,
+    `是伍六一。他的腿伤发作了，整个人跪在雪地里，一条腿使不上劲。`,
+    `成才就在他旁边。成才回头看了一眼，停了两秒。`,
+    `然后成才跑了。他跑得很快，很快就变成了雪地里的一个小点。`,
+    `许三多蹲下去，要把伍六一背起来。伍六一推他："别管我。"许三多说："不。"`,
+    `伍六一又推："你走！"许三多还是那句："不。"`,
+    `雪落在他们两个人的肩上。`,
+    `你也到了这里。你的体力还剩一点，但不多。终点就在前面，你听得见那边的声音。`,
+    `你必须做决定了。`
+  ],
+  choices: [
+    { t:'蹲下去，跟许三多一起架起伍六一',
+      e:{attrs:{意志:10,人缘:6}, rel:{伍六一:25,许三多:20,袁朗:15}, st:{体力:-30,士气:15}},
+      n:'training' },
+    { t:'冲过终点，先保住自己的名额',
+      e:{attrs:{体能:5,意志:-3}, rel:{伍六一:-15,许三多:-8,袁朗:-5}, st:{体力:-15}},
+      n:'training' },
+    { t:'留下水壶和一点干粮给伍六一，然后冲终点',
+      e:{attrs:{战术:5,人缘:3}, rel:{伍六一:5,袁朗:5}, st:{体力:-18}},
+      n:'training' },
+    { t:'站着不动，等他们先走，自己最后',
+      e:{attrs:{意志:8}, rel:{伍六一:15,许三多:12,袁朗:10}, st:{体力:-25}},
+      n:'training' }
+  ],
+  customNext:'training'
+},
+
+/* ---------- 老A训练 ---------- */
+training: {
+  date:'二〇〇二年一月', time:'全天', weather:'寒冷', place:'A大队 · 训练基地',
+  text: [
+    `训练基地在更深的山里。`,
+    `你被分到一个班，编号取代了名字。教官齐桓站在队伍前面，脸绷得像块铁。`,
+    `"从现在开始，你们不是人，是南瓜。"他说，"南瓜不会累，南瓜不会饿，南瓜不会疼。"`,
+    `第一天，你们跑了不知道多少公里。第二天，是攀登。第三天，是水下。第四天，没有人记得是第几天。`,
+    `袁朗偶尔出现。他不喊口令，只是站在旁边看着，手里拿着个小本子。`,
+    `"那个谁，"他会突然指一个人，"扣五分。"`,
+    `被扣分的人问为什么，他就笑："因为你问为什么。"`,
+    `有个叫拓永刚的少校，从别的部队来的，脾气硬。他在一次考核后当众质问袁朗规则不公。`,
+    `袁朗看着他，笑了一下，说："你要是不服，现在就可以走。"`,
+    `拓永刚真走了。走的时候把帽子摔在地上。`,
+    `没人去捡那顶帽子。风把它吹出去很远。`
+  ],
+  choices: [
+    { t:'沉默。训练，吃饭，睡觉，不问为什么',
+      e:{attrs:{意志:10,体能:6}, rel:{袁朗:12,齐桓:8}, st:{体力:-20}},
+      n:'tuoyonggang' },
+    { t:'被扣分后，当着所有人的面问袁朗要理由',
+      e:{attrs:{意志:6,人缘:5}, rel:{袁朗:5,齐桓:-3}, st:{体力:-18}},
+      n:'tuoyonggang' },
+    { t:'私下找吴哲聊聊，问他怎么看这套规则',
+      e:{attrs:{悟性:8}, rel:{吴哲:15}, met:['吴哲'], st:{精神:8}},
+      n:'tuoyonggang' },
+    { t:'把每一次被扣分都记在本子上，研究规律',
+      e:{attrs:{战术:8,悟性:5}, rel:{袁朗:8}, st:{体力:-15}},
+      n:'tuoyonggang' }
+  ],
+  customNext:'tuoyonggang'
+},
+
+tuoyonggang: {
+  date:'二〇〇二年二月', time:'深夜', weather:'大雪', place:'A大队 · 操场',
+  text: [
+    `拓永刚走后的第三天，袁朗把所有人集合起来。`,
+    `"你们是不是觉得，我扣分没道理？"他问。`,
+    `没人回答。`,
+    `"那我告诉你们，"袁朗说，"在这个地方，道理是最不值钱的东西。我要看的不是你们能不能做到，是你们在什么都做不到的时候，还剩下什么。"`,
+    `他扫了一圈，目光在每个人脸上停了一秒。`,
+    `"成才。"他忽然点名，"你出列。"`,
+    `成才站出来，站得笔直。`,
+    `"你告诉我，选拔最后一天，你为什么把伍六一扔下？"`,
+    `成才没说话。`,
+    `"你答不上来，我替你答。"袁朗说，"因为你算过——三个人名额，你带上他，你也不一定进得去。你算得很对。"`,
+    `"但是你算错了一件事。"`,
+    `袁朗没再说下去。他挥挥手，让成才归队。`,
+    `雪还在下。你站在队伍里，能听见成才的呼吸声，比平时重了很多。`
+  ],
+  choices: [
+    { t:'训练结束后，找成才聊聊',
+      e:{rel:{成才:12}, attrs:{人缘:4}, st:{精神:5}},
+      n:'final_test' },
+    { t:'什么也不说。有些事不是别人能劝的',
+      e:{attrs:{意志:4}, st:{精神:5}},
+      n:'final_test' },
+    { t:'去找袁朗，问他为什么当众说这些',
+      e:{attrs:{意志:6,悟性:4}, rel:{袁朗:10}, st:{体力:-8}},
+      n:'final_test' },
+    { t:'找许三多，跟他一起加练',
+      e:{attrs:{体能:6,意志:5}, rel:{许三多:12}, st:{体力:-15}},
+      n:'final_test' }
+  ],
+  customNext:'final_test'
+},
+
+/* ---------- 最终考核 ---------- */
+final_test: {
+  date:'二〇〇二年三月', time:'凌晨', weather:'冷，有雾', place:'山区 · 未知地域',
+  text: [
+    `最终考核。`,
+    `没有通知，没有准备。凌晨三点，紧急集合的哨声响起。你们被扔进山里，任务只有一个：在指定时间内，把一个"伤员"带回集结点。`,
+    `路程很长，时间不够。这是明摆着的。`,
+    `走到一半，雾起来了。路看不清，方向也看不清。有人开始掉队。`,
+    `成才走在最前面。他一直在看表。`,
+    `"来不及了。"他说，声音很平静，"这个任务，从一开始就不可能完成。"`,
+    `然后他停下了。他把背上的"伤员"放下，坐在地上。`,
+    `"我放弃。"他说。`,
+    `袁朗的声音从雾里传出来，不知道他站在哪儿："确定？"`,
+    `"确定。"`,
+    `成才被带走了。走的时候他没回头。`,
+    `你还在走。许三多还在走。还有几个人在走。`,
+    `你的肩膀已经被磨破了，那"伤员"的重量压得你喘不过气。但你想起了一句话——不抛弃，不放弃。`,
+    `雾很浓。前面什么都看不见。`
+  ],
+  choices: [
+    { t:'继续走。哪怕超时，也要把人带到',
+      e:{attrs:{意志:15}, rel:{袁朗:20,许三多:15}, st:{体力:-35,士气:20}},
+      n:'ending' },
+    { t:'停下来，重新判断路线，找更近的道',
+      e:{attrs:{战术:10,意志:8}, rel:{袁朗:12}, st:{体力:-25}},
+      n:'ending' },
+    { t:'跟许三多一起走，两个人轮流背',
+      e:{attrs:{意志:10,人缘:8}, rel:{许三多:20,袁朗:15}, st:{体力:-30,士气:15}},
+      n:'ending' },
+    { t:'走不动了。把伤员放下，原地等',
+      e:{attrs:{意志:-8}, rel:{袁朗:-10}, st:{体力:-15,士气:-15}},
+      n:'ending' }
+  ],
+  customNext:'ending'
+},
+
+/* ---------- 结局 ---------- */
+ending: {
+  date:'二〇〇二年春', time:'清晨', weather:'雾散，日出', place:'A大队 · 营区',
+  text: [
+    `雾散的时候，你看见了集结点。`,
+    `袁朗站在那儿，手里还是那个小本子。他看着你走过来，没说话。`,
+    `你把"伤员"放下。你的腿在抖，站都站不稳。`,
+    `袁朗看了你很久。然后他合上本子，说了一句话。`,
+    `"不错。"`,
+    `这两个字从他嘴里出来，比任何表扬都重。`,
+    `几天后，名单公布。你成为A大队的正式成员。`,
+    `许三多也在。他站在队列里，还是那副憨样子，但眼睛是亮的。`,
+    `成才被淘汰了。他回七〇二团，在高城手下重新当兵。送他走的那天，你没去。不是不想，是不知道说什么。`,
+    `后来的事，是别人告诉你的。说成才回去之后消沉了很久，后来慢慢找回了自己。说他最后又被A大队接纳了。`,
+    `再后来，你真的在A大队的操场上看见了他。`,
+    `他和许三多站在一起，两个同乡，隔着很远的距离，但都在那儿。`,
+    `袁朗走过去，拍了拍成才的肩，说："你是一棵大树，到哪儿都能活。"`,
+    `你站在不远处，看着这一幕。`,
+    `风从山那边吹过来，带着春天新草的味道。`
+  ],
+  choices: [
+    { t:'—— 完 ——', e:{}, n:null }
+  ],
+  customNext:null
+}
+
+};
+
+/* ============================================================
+   渲染
+============================================================ */
+function render(){
+  if(!G){ renderCreation(); return; }
+  const s = scenes[G.scene];
+  const scr = document.getElementById('screen');
+
+  /* 顶部面板 */
+  let html = '';
+
+  html += `<div class="card">
+    <div class="title">🎖️ 士兵档案</div>
+    <pre class="code"># ════ 702团 · 士兵档案 ════
+姓名：${G.name}　年龄：${G.age}岁
+日期：${s.date}
+时段：${s.time}
+天气：${s.weather}
+地点：${s.place}
+来历：${G.origin}｜${G.past}｜${G.trait}</pre>
+  </div>`;
+
+  /* 核心属性 */
+  html += `<div class="card">
+    <div class="title">📊 核心属性</div>
+    <pre class="code"># ════ 能力面板 ════
+体能 💪 ${bar(G.attrs.体能)} ${num(G.attrs.体能)}
+射击 🎯 ${bar(G.attrs.射击)} ${num(G.attrs.射击)}
+战术 🧠 ${bar(G.attrs.战术)} ${num(G.attrs.战术)}
+意志 🔥 ${bar(G.attrs.意志)} ${num(G.attrs.意志)}
+人缘 🤝 ${bar(G.attrs.人缘)} ${num(G.attrs.人缘)}
+悟性 💡 ${bar(G.attrs.悟性)} ${num(G.attrs.悟性)}
+
+# ════ 当前状态 ════
+体力 ⚡ ${bar(G.st.体力)} ${num(G.st.体力)}
+精神 🌙 ${bar(G.st.精神)} ${num(G.st.精神)}
+士气 🎗️ ${bar(G.st.士气)} ${num(G.st.士气)}</pre>
+  </div>`;
+
+  /* 指令大全 */
+  html += `<div class="card">
+    <div class="title">📜 指令大全</div>
+    <pre class="code"># ══════ 指令大全 ══════
+【📋 基础类】
+  查看状态｜查看关系｜存档｜读档
+【🏃 行动类】
+  加练｜休息｜独处｜自由活动
+  出操｜训练｜站岗｜整内务
+【💬 社交类】
+  找史今｜找许三多｜找成才
+  找伍六一｜找高城｜找袁朗
+  找吴哲｜找齐桓｜找老马
+【👁️ 观察类】
+  看训练场｜看班务会｜看连部
+  看操场｜看营房｜看窗外
+【🎖️ 军务类】
+  参加演习｜执行任务｜写家信
+  擦拭武器｜整理军装
+【⚙️ 系统类】
+  重开人生｜返回主界面</pre>
+  </div>`;
+
+  /* 剧情 */
+  html += `<div class="card">
+    <div class="title">📖 第 ${G.turn + 1} 回合</div>
+    <div class="story">${s.text.map(p=>`<p>${p}</p>`).join('')}</div>
+  </div>`;
+
+  /* 关系树 */
+  html += renderRelationTree();
+
+  /* 选项 */
+  html += `<div class="card">
+    <div class="title">🎯 你打算怎么做</div>`;
+  s.choices.forEach((c, i) => {
+    const letter = 'ABCD'[i] || '·';
+    html += `<button class="btn" onclick="choose(${i})">【${letter}】${c.t}</button>`;
+  });
+  html += `<button class="btn custom" onclick="customChoice()">【✎ 自定义】自己写一个行动</button>`;
+  html += `</div>`;
+
+  scr.innerHTML = html;
+  window.scrollTo(0,0);
+}
+
+function renderRelationTree(){
+  const R = G.rel;
+  const met = G.met;
+  function line(name, emoji){
+    if(!met.has(name)) return '';
+    const v = R[name] || 0;
+    let tag = '陌生';
+    if(v >= 60) tag = '生死之交';
+    else if(v >= 40) tag = '信得过';
+    else if(v >= 20) tag = '有交情';
+    else if(v >= 5) tag = '认得你';
+    else if(v <= -20) tag = '看不上你';
+    else if(v <= -5) tag = '有点意见';
+    return `  ${emoji} ${name.padEnd(4,'　')} ${bar(v+50,100)} ${tag}\n`;
+  }
+  let t = '# ════ 人物关系树 ════\n\n【702团】\n';
+  t += '  高城（连长）\n';
+  t += '   └─ 史今（班长）\n';
+  t += '       ├─ 许三多\n';
+  t += '       ├─ 成才\n';
+  t += '       ├─ 伍六一\n';
+  t += `       └─ ${G.name} ★\n\n`;
+  t += '【草原五班】\n  老马（班长）\n\n';
+  t += '【A大队】\n  袁朗（中队长）\n';
+  t += '   ├─ 齐桓（菜刀）\n';
+  t += '   └─ 吴哲（少校）\n\n';
+  t += '# ════ 好感度 ════\n';
+  let body = '';
+  body += line('史今','🧑‍✈️');
+  body += line('许三多','🙂');
+  body += line('成才','😏');
+  body += line('伍六一','🗿');
+  body += line('高城','🎖️');
+  body += line('老马','🚬');
+  body += line('袁朗','😐');
+  body += line('吴哲','📚');
+  body += line('齐桓','🔪');
+  if(!body) body = '  （还没有认识什么人）\n';
+  return `<div class="card">
+    <div class="title">🌳 人物关系</div>
+    <pre class="code">${t}${body}</pre>
+  </div>`;
+}
+
+/* ============================================================
+   选择处理
+============================================================ */
+function choose(i){
+  const s = scenes[G.scene];
+  const c = s.choices[i];
+  if(!c) return;
+  applyEffects(c.e);
+  G.turn++;
+  let next = c.n;
+  if(c.nFn) next = c.nFn();
+  if(!next){ return; }
+  G.scene = next;
+  render();
+}
+
+function customChoice(){
+  const s = scenes[G.scene];
+  const txt = prompt('写下你要做的事（一句话）：');
+  if(txt === null) return;
+  const t = txt.trim();
+  if(!t) return;
+
+  /* 关键词判定 */
+  const e = {};
+  if(/跑|练|加练|单杠|体能|负重|五公里/.test(t)){
+    e.attrs = {体能:5, 意志:3};
+    e.st = {体力:-12};
+  } else if(/枪|射击|打靶|瞄准/.test(t)){
+    e.attrs = {射击:5};
+    e.st = {体力:-6};
+  } else if(/聊|说|问|找|谈/.test(t)){
+    e.attrs = {人缘:4, 悟性:2};
+    e.st = {精神:6};
+    const names = ['史今','许三多','成才','伍六一','高城','袁朗','吴哲','齐桓','老马'];
+    for(const n of names){
+      if(t.includes(n)){
+        e.rel = {}; e.rel[n] = 8; e.met = [n];
+        break;
+      }
+    }
+  } else if(/看|观察|想|琢磨|研究/.test(t)){
+    e.attrs = {悟性:4, 战术:3};
+    e.st = {精神:4};
+  } else if(/睡|休息|歇|躺/.test(t)){
+    e.st = {体力:10, 精神:8};
+  } else if(/写信|家信|独处|坐着/.test(t)){
+    e.attrs = {意志:3};
+    e.st = {精神:10};
+  } else {
+    e.attrs = {意志:2};
+    e.st = {精神:3};
+  }
+
+  applyEffects(e);
+  G.turn++;
+  const next = s.customNext || 'ending';
+  alert('你做了你想做的事。');
+  G.scene = next;
+  render();
+}
+
+/* ============================================================
+   启动
+============================================================ */
+renderCreation();
+</script>
+</body>
+</html>
